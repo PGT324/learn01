@@ -1,18 +1,24 @@
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { Module } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
-import { RestaurantsModule } from './restaurants/restaurants.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 
 // joi처럼 js로 구성된 친구를 import할때는 alias를 사용한다.
 // joi는 유효성 검사 tool이다. (env등이 설정되있지 않으면 앱을 실행하지 않게 한다.)
 import * as Joi from 'joi';
-import { Restaurant } from './restaurants/entities/restaurants.entity';
 import { UsersModule } from './users/users.module';
 import { CommonModule } from './common/common.module';
 import { User } from './users/entites/user.entity';
 import { JwtModule } from './jwt/jwt.module';
+import { JwtMiddelware } from './jwt/jwt.middleware';
+import { AuthModule } from './auth/auth.module';
+import { Verification } from './users/entites/verification.entity';
 
 @Module({
   imports: [
@@ -45,18 +51,28 @@ import { JwtModule } from './jwt/jwt.module';
       synchronize: true,
       logging: true,
       //typeorm -> entity에서 Entity, Column, PrimaryKey 설정 -> app.module에서 entities설정!
-      entities: [User],
+      entities: [User, Verification],
     }),
     //graphql code-first
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: true,
+      // graphql context에 user key를 가진 http를 보낸다.
+      context: ({ req }) => ({ user: req['user'] }),
     }),
     UsersModule,
-    CommonModule,
-    JwtModule,
+    JwtModule.forRoot({
+      privateKey: process.env.TOKEN_SECRET,
+    }),
+    AuthModule,
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(JwtMiddelware)
+      .forRoutes({ path: '/graphql', method: RequestMethod.POST });
+  }
+}
