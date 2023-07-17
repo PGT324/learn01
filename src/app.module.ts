@@ -13,12 +13,12 @@ import { ConfigModule } from '@nestjs/config';
 // joi는 유효성 검사 tool이다. (env등이 설정되있지 않으면 앱을 실행하지 않게 한다.)
 import * as Joi from 'joi';
 import { UsersModule } from './users/users.module';
-import { CommonModule } from './common/common.module';
 import { User } from './users/entites/user.entity';
 import { JwtModule } from './jwt/jwt.module';
 import { JwtMiddelware } from './jwt/jwt.middleware';
 import { AuthModule } from './auth/auth.module';
 import { Verification } from './users/entites/verification.entity';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -38,6 +38,9 @@ import { Verification } from './users/entites/verification.entity';
         DB_DATABASE: Joi.string().required(),
         //JWT(토큰생성)
         TOKEN_SECRET: Joi.string().required(),
+        MAILGUN_API_KEY: Joi.string().required(),
+        MAILGUN_DOMAIN_NAME: Joi.string().required(),
+        MAILGUN_FROM_EMAIL: Joi.string().required(),
       }),
     }),
     //typeorm 설정
@@ -65,6 +68,11 @@ import { Verification } from './users/entites/verification.entity';
       privateKey: process.env.TOKEN_SECRET,
     }),
     AuthModule,
+    EmailModule.forRoot({
+      apiKey: process.env.MAILGUN_API_KEY,
+      domain: process.env.MAILGUN_DOMAIN_NAME,
+      fromEmail: process.env.MAILGUN_FROM_EMAIL,
+    }),
   ],
   controllers: [],
   providers: [],

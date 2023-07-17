@@ -4,10 +4,10 @@ import { Repository } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { CreateAccount } from './dtos/create-account.dto';
 import { Login } from './dtos/login.dto';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from 'src/jwt/jwt.service';
 import { EditProfileInput } from './dtos/edit-profile-dto';
 import { Verification } from './entites/verification.entity';
+import { EmailService } from 'src/email/email.service';
 
 @Injectable()
 export class UsersService {
@@ -16,8 +16,8 @@ export class UsersService {
     @InjectRepository(Verification)
     private readonly verification: Repository<Verification>,
     //jwt토큰 설정을 위한 변수설정
-    private readonly config: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly emailService: EmailService,
   ) {}
 
   async createAccount(
@@ -38,11 +38,12 @@ export class UsersService {
 
       // 생성된 유저 db에 저장
       const result = await this.users.save(user);
-      await this.verification.save(
+      const verification = await this.verification.save(
         this.verification.create({
           user: result,
         }),
       );
+      this.emailService.sendVerificationEmail(verification.code);
       return [true, '계정 생성 성공!'];
     } catch (error) {
       return [false, '에러 발생! 계정 생성이 불가합니다.'];
@@ -96,7 +97,10 @@ export class UsersService {
     if (editProfileInput.email) {
       user.email = editProfileInput.email;
       user.verified = false;
-      await this.verification.save(this.verification.create({ user }));
+      const verification = await this.verification.save(
+        this.verification.create({ user }),
+      );
+      this.emailService.sendVerificationEmail(verification.code);
     }
     if (editProfileInput.password) {
       user.password = editProfileInput.password;
@@ -114,7 +118,8 @@ export class UsersService {
       if (verification) {
         verification.user.verified = true;
         console.log(verification.user);
-        this.users.save(verification.user);
+        await this.users.save(verification.user);
+        await this.verification.delete(verification.id);
         return true;
       }
       throw new Error();
